@@ -23,7 +23,8 @@ export async function POST(req: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await wb.xlsx.load(buffer as any); // ExcelJS Buffer 타입과 @types/node 20 + TS 5.6+ 불일치
   const ws = wb.worksheets[0];
   if (!ws) {
     return NextResponse.json({ error: "시트를 찾을 수 없습니다." }, { status: 400 });

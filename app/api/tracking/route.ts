@@ -6,7 +6,8 @@ import { buildTrackingTemplate } from "@/lib/excel";
 // GET /api/tracking  → 빈 템플릿 다운로드
 export async function GET() {
   const buffer = await buildTrackingTemplate();
-  return new NextResponse(buffer, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new NextResponse(buffer as any, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent("송장번호_입력양식.xlsx")}`,
@@ -23,7 +24,8 @@ export async function POST(req: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await wb.xlsx.load(buffer as any); // ExcelJS Buffer 타입과 @types/node 20 + TS 5.6+ 불일치
   const ws = wb.worksheets[0];
   if (!ws) return NextResponse.json({ error: "시트를 찾을 수 없습니다." }, { status: 400 });
 
