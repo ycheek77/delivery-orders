@@ -1,7 +1,10 @@
 import fs from "fs";
 import path from "path";
 
-const DB_PATH = path.join(process.cwd(), "data", "db.json");
+// Vercel 환경에서는 프로젝트 루트가 읽기 전용이므로 /tmp 사용
+const DB_PATH = process.env.VERCEL
+  ? path.join("/tmp", "db.json")
+  : path.join(process.cwd(), "data", "db.json");
 
 // ── 내부 타입 ────────────────────────────────────────────────────
 interface DbOrder {
