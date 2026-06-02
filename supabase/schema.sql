@@ -31,14 +31,14 @@ CREATE TABLE IF NOT EXISTS order_items (
 );
 
 -- 4. 수령인 DB / 고객 (customers)
---    name 은 유일값 (upsert 기준 키)
+--    이름+연락처 조합이 유일값 (upsert 기준 키) — 동명이인 허용
 CREATE TABLE IF NOT EXISTS customers (
   id      BIGSERIAL PRIMARY KEY,
   name    TEXT NOT NULL,
   contact TEXT NOT NULL DEFAULT '',
   address TEXT NOT NULL DEFAULT '',
   company TEXT NOT NULL DEFAULT '',
-  CONSTRAINT customers_name_key UNIQUE (name)
+  CONSTRAINT customers_name_contact_key UNIQUE (name, contact)
 );
 
 -- 인덱스 (조회 성능)

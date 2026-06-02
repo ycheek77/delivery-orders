@@ -208,7 +208,7 @@ export async function searchCustomers(query: string): Promise<Customer[]> {
   );
 }
 
-// ── 고객 일괄 추가/갱신 (이름 기준 upsert) ───────────────────────
+// ── 고객 일괄 추가/갱신 (이름+연락처 기준 upsert) ───────────────
 export async function upsertCustomers(
   list: { name: string; contact: string; address?: string; company?: string }[]
 ): Promise<number> {
@@ -223,18 +223,18 @@ export async function upsertCustomers(
 
   if (toUpsert.length === 0) return 0;
 
-  // 같은 이름이 여러 행 있으면 PostgreSQL 배치 upsert가 "affect a row a second time" 오류를 냄.
-  // 이름 기준으로 중복 제거 (뒤에 나온 행이 앞 행을 덮어씀)
+  // 같은 (이름+연락처) 조합이 여러 행 있으면 PostgreSQL 배치 upsert가
+  // "affect a row a second time" 오류를 냄 → 중복 제거 (뒤 행이 앞 행 덮어씀)
   const dedupMap = new Map<string, typeof toUpsert[number]>();
-  for (const item of toUpsert) dedupMap.set(item.name, item);
+  for (const item of toUpsert) dedupMap.set(`${item.name}||${item.contact}`, item);
   const deduped = Array.from(dedupMap.values());
 
   const { error } = await supabase
     .from("customers")
-    .upsert(deduped, { onConflict: "name" });
+    .upsert(deduped, { onConflict: "name,contact" });
   if (error) throw new Error(error.message);
 
-  return toUpsert.length;
+  return deduped.length;
 }
 
 // ── 고객 삭제 ─────────────────────────────────────────────────────
