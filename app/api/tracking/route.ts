@@ -16,7 +16,7 @@ export async function GET() {
 }
 
 // POST /api/tracking  body: FormData { file: xlsx }
-// 컬럼 순서: 이름(1) / 주소(2) / 연락처(3) / 제품및수량(4) / 송장번호(5)
+// 컬럼 순서: 수령인명(1) / 주소(2) / 연락처(3) / 제품및수량(4) / 주문자명(5) / 송장번호입력(6)
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (rowNum === 1) return; // 헤더 스킵
     const name     = row.getCell(1).text?.trim() ?? "";
     const contact  = row.getCell(3).text?.trim() ?? "";
-    const tracking = row.getCell(5).text?.trim() ?? "";
+    const tracking = row.getCell(6).text?.trim() ?? "";
     if (name && contact && tracking) {
       rows.push({ name, contact, tracking_number: tracking });
     }

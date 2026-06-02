@@ -1,13 +1,14 @@
 import ExcelJS from "exceljs";
 import type { RecipientRow } from "@/types/order";
 
-// 통일 컬럼: 이름 / 주소 / 연락처 / 제품및수량 / 송장번호
+// 통일 컬럼: 수령인명 / 주소 / 연락처 / 제품및수량 / 주문자명 / 송장번호입력
 const COLUMNS: Partial<ExcelJS.Column>[] = [
-  { header: "이름",      key: "recipient_name",  width: 14 },
-  { header: "주소",      key: "address",         width: 48 },
-  { header: "연락처",    key: "contact",         width: 18 },
-  { header: "제품및수량", key: "products",        width: 38 },
-  { header: "송장번호",  key: "tracking_number", width: 22 },
+  { header: "수령인명",    key: "recipient_name",  width: 14 },
+  { header: "주소",        key: "address",         width: 48 },
+  { header: "연락처",      key: "contact",         width: 18 },
+  { header: "제품및수량",  key: "products",        width: 38 },
+  { header: "주문자명",    key: "orderer_name",    width: 14 },
+  { header: "송장번호입력", key: "tracking_number", width: 22 },
 ];
 
 export async function buildExcel(rows: RecipientRow[]): Promise<Buffer> {
@@ -31,6 +32,7 @@ export async function buildExcel(rows: RecipientRow[]): Promise<Buffer> {
       address:         row.address,
       contact:         row.contact,
       products:        row.products,        // 이미 "제품명 수량개 * ..." 형식
+      orderer_name:    row.orderer_name,
       tracking_number: row.tracking_number ?? "",
     });
     r.eachCell((cell) => {
@@ -64,6 +66,7 @@ export async function buildTrackingTemplate(): Promise<Buffer> {
     address:         "[06141] 서울시 강남구 테헤란로 123",
     contact:         "010-1234-5678",
     products:        "설포라판 2개 * 슬립B 1개",
+    orderer_name:    "김주문",
     tracking_number: "1234567890123",
   });
   ex.eachCell((cell) => {
