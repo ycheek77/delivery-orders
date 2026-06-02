@@ -45,6 +45,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "송장번호가 입력된 행이 없습니다." }, { status: 400 });
   }
 
-  const count = updateTrackingNumbers(rows);
+  const count = await updateTrackingNumbers(rows);
   return NextResponse.json({ count });
 }

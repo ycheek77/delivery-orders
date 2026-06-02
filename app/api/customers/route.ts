@@ -8,9 +8,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
   if (q !== null) {
-    return NextResponse.json(searchCustomers(q));
+    return NextResponse.json(await searchCustomers(q));
   }
-  return NextResponse.json(getAllCustomers());
+  return NextResponse.json(await getAllCustomers());
 }
 
 // POST /api/customers  body: FormData { file: xlsx }
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     if (name) list.push({ name, contact, address, company });
   });
 
-  const count = upsertCustomers(list);
+  const count = await upsertCustomers(list);
   return NextResponse.json({ count });
 }
 
@@ -48,6 +48,6 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const id = Number(new URL(req.url).searchParams.get("id"));
   if (!id) return NextResponse.json({ error: "id 없음" }, { status: 400 });
-  const ok = deleteCustomer(id);
+  const ok = await deleteCustomer(id);
   return NextResponse.json({ ok });
 }

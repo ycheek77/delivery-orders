@@ -1,88 +1,12 @@
-import fs from "fs";
-import path from "path";
+import { createClient } from "@supabase/supabase-js";
 
-// Vercel 환경에서는 프로젝트 루트가 읽기 전용이므로 /tmp 사용
-const DB_PATH = process.env.VERCEL
-  ? path.join("/tmp", "db.json")
-  : path.join(process.cwd(), "data", "db.json");
+// ── Supabase 클라이언트 (서버 전용 — service_role 키) ─────────────
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-// ── 내부 타입 ────────────────────────────────────────────────────
-interface DbOrder {
-  id: number;
-  orderer_name: string;
-  orderer_contact: string;
-  created_at: string;
-}
-
-interface DbRecipient {
-  id: number;
-  order_id: number;
-  recipient_name: string;
-  address: string;
-  contact: string;
-  request: string;
-  tracking_number: string;
-}
-
-interface DbItem {
-  id: number;
-  recipient_id: number;
-  product_name: string;
-  quantity: number;
-}
-
-interface DbCustomer {
-  id: number;
-  name: string;
-  contact: string;
-  address: string;
-  company: string;
-}
-
-interface DbData {
-  orders: DbOrder[];
-  recipients: DbRecipient[];
-  order_items: DbItem[];
-  customers: DbCustomer[];
-  _meta: {
-    next_order_id: number;
-    next_recipient_id: number;
-    next_item_id: number;
-    next_customer_id: number;
-  };
-}
-
-// ── 파일 읽기/쓰기 ───────────────────────────────────────────────
-function load(): DbData {
-  if (!fs.existsSync(DB_PATH)) {
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-    const initial: DbData = {
-      orders: [], recipients: [], order_items: [], customers: [],
-      _meta: { next_order_id: 1, next_recipient_id: 1, next_item_id: 1, next_customer_id: 1 },
-    };
-    fs.writeFileSync(DB_PATH, JSON.stringify(initial, null, 2), "utf-8");
-    return initial;
-  }
-  const raw = JSON.parse(fs.readFileSync(DB_PATH, "utf-8")) as Partial<DbData>;
-  // 이전 버전 DB 호환
-  return {
-    orders:      raw.orders      ?? [],
-    recipients:  raw.recipients  ?? [],
-    order_items: raw.order_items ?? [],
-    customers:   (raw.customers  ?? []).map((c) => ({ ...c, address: c.address ?? "" })),
-    _meta: {
-      next_order_id:     raw._meta?.next_order_id     ?? 1,
-      next_recipient_id: raw._meta?.next_recipient_id ?? 1,
-      next_item_id:      raw._meta?.next_item_id      ?? 1,
-      next_customer_id:  raw._meta?.next_customer_id  ?? 1,
-    },
-  };
-}
-
-function save(data: DbData) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), "utf-8");
-}
-
+// ── 현재 한국 시간 문자열 ─────────────────────────────────────────
 function nowKST(): string {
   return new Date()
     .toLocaleString("sv-SE", { timeZone: "Asia/Seoul" })
@@ -120,139 +44,206 @@ export interface Customer {
   company: string;
 }
 
-// ── 헬퍼: 수령인 평탄화 ─────────────────────────────────────────
-function buildFlatRows(orders: DbOrder[], db: DbData): FlatRow[] {
+// ── 내부 Supabase 행 타입 ─────────────────────────────────────────
+interface DbOrderRow {
+  id: number;
+  orderer_name: string;
+  orderer_contact: string;
+  created_at: string;
+  recipients: {
+    id: number;
+    recipient_name: string;
+    address: string;
+    contact: string;
+    request: string;
+    tracking_number: string;
+    order_items: { product_name: string; quantity: number }[];
+  }[];
+}
+
+// ── Supabase 중첩 결과 → FlatRow 변환 ────────────────────────────
+function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
   const rows: FlatRow[] = [];
   for (const order of orders) {
-    const recs = db.recipients.filter((r) => r.order_id === order.id);
-    for (const rec of recs) {
-      const items = db.order_items.filter((i) => i.recipient_id === rec.id);
-      const products = items.map((i) => `${i.product_name} ${i.quantity}개`).join(" * ");
+    for (const rec of order.recipients ?? []) {
+      const items = rec.order_items ?? [];
+      const products = items
+        .map((i) => `${i.product_name} ${i.quantity}개`)
+        .join(" * ");
       rows.push({
-        recipient_id: rec.id,
-        order_id: order.id,
-        orderer_name: order.orderer_name,
+        recipient_id:    rec.id,
+        order_id:        order.id,
+        orderer_name:    order.orderer_name,
         orderer_contact: order.orderer_contact ?? "",
-        recipient_name: rec.recipient_name,
-        address: rec.address,
-        contact: rec.contact,
-        request: rec.request,
+        recipient_name:  rec.recipient_name,
+        address:         rec.address,
+        contact:         rec.contact,
+        request:         rec.request,
         products,
         tracking_number: rec.tracking_number ?? "",
-        created_at: order.created_at,
+        created_at:      order.created_at,
       });
     }
   }
   return rows;
 }
 
+const ORDER_SELECT = `
+  id, orderer_name, orderer_contact, created_at,
+  recipients (
+    id, recipient_name, address, contact, request, tracking_number,
+    order_items ( product_name, quantity )
+  )
+` as const;
+
 // ── 주문 저장 ────────────────────────────────────────────────────
-export function insertOrder(
+export async function insertOrder(
   orderer_name: string,
   orderer_contact: string,
   recipients: RecipientInput[]
-): number {
-  const db = load();
-  const orderId = db._meta.next_order_id++;
-  db.orders.push({ id: orderId, orderer_name, orderer_contact, created_at: nowKST() });
+): Promise<number> {
+  // 1) 주문 삽입
+  const { data: orderData, error: orderErr } = await supabase
+    .from("orders")
+    .insert({ orderer_name, orderer_contact, created_at: nowKST() })
+    .select("id")
+    .single();
+  if (orderErr || !orderData) throw new Error(orderErr?.message ?? "주문 저장 실패");
+
+  const orderId: number = orderData.id;
 
   for (const r of recipients) {
-    const recipientId = db._meta.next_recipient_id++;
-    db.recipients.push({
-      id: recipientId, order_id: orderId,
-      recipient_name: r.recipient_name, address: r.address,
-      contact: r.contact, request: r.request ?? "", tracking_number: "",
-    });
-    for (const item of r.items) {
-      db.order_items.push({
-        id: db._meta.next_item_id++, recipient_id: recipientId,
-        product_name: item.product_name, quantity: item.quantity,
-      });
+    // 2) 수령인 삽입
+    const { data: recData, error: recErr } = await supabase
+      .from("recipients")
+      .insert({
+        order_id:        orderId,
+        recipient_name:  r.recipient_name,
+        address:         r.address,
+        contact:         r.contact,
+        request:         r.request ?? "",
+        tracking_number: "",
+      })
+      .select("id")
+      .single();
+    if (recErr || !recData) throw new Error(recErr?.message ?? "수령인 저장 실패");
+
+    const recipientId: number = recData.id;
+
+    // 3) 상품 삽입
+    if (r.items.length > 0) {
+      const { error: itemErr } = await supabase
+        .from("order_items")
+        .insert(
+          r.items.map((item) => ({
+            recipient_id: recipientId,
+            product_name: item.product_name,
+            quantity:     item.quantity,
+          }))
+        );
+      if (itemErr) throw new Error(itemErr.message);
     }
   }
-  save(db);
+
   return orderId;
 }
 
-// ── 주문 조회 (관리자) ───────────────────────────────────────────
-export function queryRows(date?: string): FlatRow[] {
-  const db = load();
-  let orders = date
-    ? db.orders.filter((o) => o.created_at.startsWith(date))
-    : db.orders;
-  orders = [...orders].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return buildFlatRows(orders, db);
+// ── 주문 조회 (내림차순) ─────────────────────────────────────────
+export async function queryRows(date?: string): Promise<FlatRow[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (supabase.from("orders").select(ORDER_SELECT) as any);
+  if (date) q = q.like("created_at", `${date}%`);
+  q = q.order("created_at", { ascending: false });
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return buildFlatRows((data ?? []) as DbOrderRow[]);
 }
 
-export function queryRowsAsc(date?: string): FlatRow[] {
-  return queryRows(date).reverse();
+// ── 주문 조회 (오름차순) ─────────────────────────────────────────
+export async function queryRowsAsc(date?: string): Promise<FlatRow[]> {
+  return (await queryRows(date)).reverse();
 }
 
-// ── 내 주문 조회 (주문자 본인) ───────────────────────────────────
-// 이름 + 연락처 둘 다 일치해야만 조회 허용
-export function queryByOrderer(name: string, contact: string): FlatRow[] {
-  const db = load();
-  const orders = db.orders
-    .filter((o) => o.orderer_name === name && (o.orderer_contact ?? "") === contact)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return buildFlatRows(orders, db);
+// ── 내 주문 조회 (주문자 이름 + 연락처) ──────────────────────────
+export async function queryByOrderer(
+  name: string,
+  contact: string
+): Promise<FlatRow[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("orders").select(ORDER_SELECT) as any)
+    .eq("orderer_name", name)
+    .eq("orderer_contact", contact)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return buildFlatRows((data ?? []) as DbOrderRow[]);
 }
 
-// ── 고객 DB ──────────────────────────────────────────────────────
-export function getAllCustomers(): Customer[] {
-  const db = load();
-  return [...db.customers].sort((a, b) => a.name.localeCompare(b.name, "ko"));
+// ── 고객 전체 조회 ────────────────────────────────────────────────
+export async function getAllCustomers(): Promise<Customer[]> {
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Customer[];
 }
 
-export function searchCustomers(query: string): Customer[] {
-  const db = load();
+// ── 고객 검색 (이름 또는 연락처 숫자) ────────────────────────────
+export async function searchCustomers(query: string): Promise<Customer[]> {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  return db.customers.filter(
+
+  // 전체 fetch 후 인메모리 필터 (연락처 숫자-only 비교 포함)
+  const { data, error } = await supabase.from("customers").select("*");
+  if (error) throw new Error(error.message);
+
+  const digits = q.replace(/[^0-9]/g, "");
+  return ((data ?? []) as Customer[]).filter(
     (c) =>
       c.name.toLowerCase().includes(q) ||
-      c.contact.replace(/[^0-9]/g, "").includes(q.replace(/[^0-9]/g, ""))
+      (digits.length > 0 &&
+        c.contact.replace(/[^0-9]/g, "").includes(digits))
   );
 }
 
-export function upsertCustomers(
+// ── 고객 일괄 추가/갱신 (이름 기준 upsert) ───────────────────────
+export async function upsertCustomers(
   list: { name: string; contact: string; address?: string; company?: string }[]
-): number {
-  const db = load();
-  let count = 0;
-  for (const item of list) {
-    const name = item.name?.trim();
-    if (!name) continue;
-    const contact = (item.contact ?? "").toString().trim();
-    const address = (item.address ?? "").toString().trim();
-    const company = (item.company ?? "").toString().trim();
-    const existing = db.customers.find((c) => c.name === name);
-    if (existing) {
-      existing.contact = contact;
-      existing.address = address;
-      existing.company = company;
-    } else {
-      db.customers.push({ id: db._meta.next_customer_id++, name, contact, address, company });
-    }
-    count++;
-  }
-  save(db);
-  return count;
+): Promise<number> {
+  const toUpsert = list
+    .map((item) => ({
+      name:    item.name?.trim() ?? "",
+      contact: (item.contact ?? "").toString().trim(),
+      address: (item.address ?? "").toString().trim(),
+      company: (item.company ?? "").toString().trim(),
+    }))
+    .filter((item) => item.name);
+
+  if (toUpsert.length === 0) return 0;
+
+  const { error } = await supabase
+    .from("customers")
+    .upsert(toUpsert, { onConflict: "name" });
+  if (error) throw new Error(error.message);
+
+  return toUpsert.length;
 }
 
-export function deleteCustomer(id: number): boolean {
-  const db = load();
-  const before = db.customers.length;
-  db.customers = db.customers.filter((c) => c.id !== id);
-  if (db.customers.length < before) { save(db); return true; }
-  return false;
+// ── 고객 삭제 ─────────────────────────────────────────────────────
+export async function deleteCustomer(id: number): Promise<boolean> {
+  const { error } = await supabase
+    .from("customers")
+    .delete()
+    .eq("id", id);
+  return !error;
 }
 
 // ── 송장번호 일괄 업데이트 ────────────────────────────────────────
-export function updateTrackingNumbers(
+export async function updateTrackingNumbers(
   rows: { name: string; contact: string; tracking_number: string }[]
-): number {
-  const db = load();
+): Promise<number> {
   let updated = 0;
 
   for (const row of rows) {
@@ -261,17 +252,26 @@ export function updateTrackingNumbers(
     const contact = row.contact?.trim();
     if (!tn || !name || !contact) continue;
 
-    // (수령인명 + 연락처) 로 매칭, 가장 최근 미입력 건 우선, 없으면 최신 건
-    const candidates = db.recipients
-      .filter((r) => r.recipient_name === name && r.contact === contact)
-      .sort((a, b) => b.id - a.id);
-    if (candidates.length === 0) continue;
+    // 수령인명 + 연락처 매칭 → 최근 미입력 건 우선
+    const { data: candidates } = await supabase
+      .from("recipients")
+      .select("id, tracking_number")
+      .eq("recipient_name", name)
+      .eq("contact", contact)
+      .order("id", { ascending: false });
 
-    const target = candidates.find((r) => !r.tracking_number) ?? candidates[0];
-    target.tracking_number = tn;
-    updated++;
+    if (!candidates?.length) continue;
+
+    const target =
+      candidates.find((r) => !r.tracking_number) ?? candidates[0];
+
+    const { error } = await supabase
+      .from("recipients")
+      .update({ tracking_number: tn })
+      .eq("id", target.id);
+
+    if (!error) updated++;
   }
 
-  save(db);
   return updated;
 }

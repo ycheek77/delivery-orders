@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date") ?? undefined;
 
-  const rows = queryRowsAsc(date);
+  const rows = await queryRowsAsc(date);
   const buffer = await buildExcel(rows);
   const filename = date ? `orders_${date}.xlsx` : `orders_all.xlsx`;
 
