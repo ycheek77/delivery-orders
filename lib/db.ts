@@ -223,9 +223,15 @@ export async function upsertCustomers(
 
   if (toUpsert.length === 0) return 0;
 
+  // 같은 이름이 여러 행 있으면 PostgreSQL 배치 upsert가 "affect a row a second time" 오류를 냄.
+  // 이름 기준으로 중복 제거 (뒤에 나온 행이 앞 행을 덮어씀)
+  const dedupMap = new Map<string, typeof toUpsert[number]>();
+  for (const item of toUpsert) dedupMap.set(item.name, item);
+  const deduped = Array.from(dedupMap.values());
+
   const { error } = await supabase
     .from("customers")
-    .upsert(toUpsert, { onConflict: "name" });
+    .upsert(deduped, { onConflict: "name" });
   if (error) throw new Error(error.message);
 
   return toUpsert.length;
