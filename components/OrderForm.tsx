@@ -42,8 +42,7 @@ const newRecipient = (): RecipientState => ({
 });
 
 export default function OrderForm() {
-  const [ordererName,    setOrdererName]    = useState("");
-  const [ordererContact, setOrdererContact] = useState("");
+  const [ordererName, setOrdererName] = useState("");
   const [recipients,  setRecipients]  = useState<RecipientState[]>([newRecipient()]);
   const [status,      setStatus]      = useState<"idle"|"loading"|"success"|"error">("idle");
   const [errorMsg,    setErrorMsg]    = useState("");
@@ -117,7 +116,7 @@ export default function OrderForm() {
     try {
       const payload = {
         orderer_name:    ordererName,
-        orderer_contact: ordererContact,
+        orderer_contact: "",
         recipients: recipients.map((r) => ({
           recipient_name: r.recipient_name,
           address: `[${r.zip}] ${r.address1}${r.address2 ? " " + r.address2 : ""}`,
@@ -147,7 +146,7 @@ export default function OrderForm() {
         <h2 className="text-xl font-bold text-gray-800">주문이 접수되었습니다!</h2>
         <p className="text-gray-500 text-sm text-center">담당자가 확인 후 연락드리겠습니다.</p>
         <button
-          onClick={() => { setStatus("idle"); setOrdererName(""); setOrdererContact(""); setRecipients([newRecipient()]); }}
+          onClick={() => { setStatus("idle"); setOrdererName(""); setRecipients([newRecipient()]); }}
           className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg font-medium"
         >
           새 주문하기
@@ -169,14 +168,6 @@ export default function OrderForm() {
           placeholder="주문자명 *"
           value={ordererName}
           onChange={(e) => setOrdererName(e.target.value)}
-          required
-          className="border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <input
-          type="tel"
-          placeholder="주문자 연락처 * (010-0000-0000)"
-          value={ordererContact}
-          onChange={(e) => setOrdererContact(e.target.value)}
           required
           className="border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
