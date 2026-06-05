@@ -38,20 +38,31 @@ function TabBtn({ label, active, onClick }: { label: string; active: boolean; on
   );
 }
 
+// 한국 시간(KST) 기준 오늘 날짜 YYYY-MM-DD
+function todayKST() {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+}
+
 function OrdersTab() {
-  const today = new Date().toISOString().slice(0, 10);
-  const [date,       setDate]       = useState(today);
-  const [rows,       setRows]       = useState<RecipientRow[]>([]);
-  const [loading,    setLoading]    = useState(false);
-  const [uploading,  setUploading]  = useState(false);
+  const [date,        setDate]        = useState(todayKST);
+  const [rows,        setRows]        = useState<RecipientRow[]>([]);
+  const [loading,     setLoading]     = useState(false);
+  const [fetchError,  setFetchError]  = useState<string | null>(null);
+  const [uploading,   setUploading]   = useState(false);
   const [trackingMsg, setTrackingMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const trackingFileRef = useRef<HTMLInputElement>(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
-      const res = await fetch(`/api/orders?date=${date}`);
-      setRows(await res.json());
+      const res  = await fetch(`/api/orders?date=${date}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "주문 조회 실패");
+      setRows(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "오류가 발생했습니다.");
+      setRows([]);
     } finally {
       setLoading(false);
     }
@@ -138,6 +149,8 @@ function OrdersTab() {
 
       {loading ? (
         <p className="text-gray-500 text-sm">불러오는 중…</p>
+      ) : fetchError ? (
+        <p className="text-red-500 text-sm">❌ {fetchError}</p>
       ) : rows.length === 0 ? (
         <p className="text-gray-400 text-sm">해당 날짜에 주문이 없습니다.</p>
       ) : (
