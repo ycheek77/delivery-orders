@@ -165,15 +165,11 @@ export async function queryRowsAsc(date?: string): Promise<FlatRow[]> {
   return (await queryRows(date)).reverse();
 }
 
-// ── 내 주문 조회 (주문자 이름 + 연락처) ──────────────────────────
-export async function queryByOrderer(
-  name: string,
-  contact: string
-): Promise<FlatRow[]> {
+// ── 내 주문 조회 (주문자 이름) ────────────────────────────────────
+export async function queryByOrderer(name: string): Promise<FlatRow[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("orders").select(ORDER_SELECT) as any)
     .eq("orderer_name", name)
-    .eq("orderer_contact", contact)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);

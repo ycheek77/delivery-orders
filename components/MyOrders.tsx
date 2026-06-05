@@ -5,7 +5,6 @@ import type { RecipientRow } from "@/types/order";
 
 export default function MyOrders() {
   const [name,    setName]    = useState("");
-  const [contact, setContact] = useState("");
   const [rows,    setRows]    = useState<RecipientRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
@@ -17,7 +16,7 @@ export default function MyOrders() {
     setRows(null);
     try {
       const res = await fetch(
-        `/api/my-orders?name=${encodeURIComponent(name)}&contact=${encodeURIComponent(contact)}`
+        `/api/my-orders?name=${encodeURIComponent(name)}`
       );
       if (!res.ok) {
         const d = await res.json();
@@ -43,17 +42,6 @@ export default function MyOrders() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="주문 시 입력한 이름"
-            required
-            className="border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">연락처 *</label>
-          <input
-            type="tel"
-            value={contact}
-            onChange={(e) => setContact(e.target.value)}
-            placeholder="010-0000-0000"
             required
             className="border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
