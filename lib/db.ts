@@ -62,27 +62,45 @@ interface DbOrderRow {
 }
 
 // ── Supabase 중첩 결과 → FlatRow 변환 ────────────────────────────
+// 수령인이 없는 주문도 빈 행으로 포함 (recipient_id = 0)
 function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
   const rows: FlatRow[] = [];
   for (const order of orders) {
-    for (const rec of order.recipients ?? []) {
-      const items = rec.order_items ?? [];
-      const products = items
-        .map((i) => `${i.product_name} ${i.quantity}개`)
-        .join(" * ");
+    const recs = order.recipients ?? [];
+    if (recs.length === 0) {
       rows.push({
-        recipient_id:    rec.id,
+        recipient_id:    0,
         order_id:        order.id,
         orderer_name:    order.orderer_name,
         orderer_contact: order.orderer_contact ?? "",
-        recipient_name:  rec.recipient_name,
-        address:         rec.address,
-        contact:         rec.contact,
-        request:         rec.request,
-        products,
-        tracking_number: rec.tracking_number ?? "",
+        recipient_name:  "",
+        address:         "",
+        contact:         "",
+        request:         "",
+        products:        "",
+        tracking_number: "",
         created_at:      order.created_at,
       });
+    } else {
+      for (const rec of recs) {
+        const items = rec.order_items ?? [];
+        const products = items
+          .map((i) => `${i.product_name} ${i.quantity}개`)
+          .join(" * ");
+        rows.push({
+          recipient_id:    rec.id,
+          order_id:        order.id,
+          orderer_name:    order.orderer_name,
+          orderer_contact: order.orderer_contact ?? "",
+          recipient_name:  rec.recipient_name,
+          address:         rec.address,
+          contact:         rec.contact,
+          request:         rec.request,
+          products,
+          tracking_number: rec.tracking_number ?? "",
+          created_at:      order.created_at,
+        });
+      }
     }
   }
   return rows;

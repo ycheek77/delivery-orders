@@ -164,23 +164,31 @@ function OrdersTab() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.recipient_id} className={i % 2 === 1 ? "bg-blue-50" : "bg-white"}>
-                  <td className="px-3 py-2 text-gray-500">{r.recipient_id}</td>
-                  <td className="px-3 py-2">{r.created_at}</td>
-                  <td className="px-3 py-2 font-medium">{r.orderer_name}</td>
-                  <td className="px-3 py-2">{r.recipient_name}</td>
-                  <td className="px-3 py-2 font-medium text-blue-700">{r.products}</td>
-                  <td className="px-3 py-2 max-w-xs truncate">{r.address}</td>
-                  <td className="px-3 py-2">{r.contact}</td>
-                  <td className="px-3 py-2 max-w-xs truncate text-gray-500">{r.request || "-"}</td>
-                  <td className="px-3 py-2">
-                    {r.tracking_number
-                      ? <span className="text-green-700 font-medium">{r.tracking_number}</span>
-                      : <span className="text-gray-300 text-xs">미입력</span>}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r, i) => {
+                const noRecipient = r.recipient_id === 0;
+                return (
+                  <tr key={`${r.order_id}-${r.recipient_id}-${i}`}
+                    className={noRecipient ? "bg-amber-50" : i % 2 === 1 ? "bg-blue-50" : "bg-white"}>
+                    <td className="px-3 py-2 text-gray-500">{r.order_id}</td>
+                    <td className="px-3 py-2">{r.created_at}</td>
+                    <td className="px-3 py-2 font-medium">{r.orderer_name}</td>
+                    <td className="px-3 py-2">
+                      {noRecipient
+                        ? <span className="text-amber-600 text-xs font-medium">⚠ 수령인 미등록</span>
+                        : r.recipient_name}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-blue-700">{r.products || "-"}</td>
+                    <td className="px-3 py-2 max-w-xs truncate">{r.address || "-"}</td>
+                    <td className="px-3 py-2">{r.contact || "-"}</td>
+                    <td className="px-3 py-2 max-w-xs truncate text-gray-500">{r.request || "-"}</td>
+                    <td className="px-3 py-2">
+                      {r.tracking_number
+                        ? <span className="text-green-700 font-medium">{r.tracking_number}</span>
+                        : <span className="text-gray-300 text-xs">미입력</span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
