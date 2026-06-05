@@ -31,6 +31,11 @@ export default function MyOrders() {
     }
   }
 
+  // 우편번호 없을 때 생긴 "[] " 접두어 제거
+  function cleanAddress(addr: string) {
+    return addr.replace(/^\[\s*\]\s*/, "");
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 pb-10">
       {/* 검색 폼 */}
@@ -90,7 +95,7 @@ export default function MyOrders() {
                 )}
                 <div className="text-sm text-gray-600 space-y-0.5">
                   <p>수령인: <span className="font-medium text-gray-800">{r.recipient_name}</span></p>
-                  <p>주소: {r.address}</p>
+                  <p>주소: {cleanAddress(r.address)}</p>
                   <p>연락처: {r.contact}</p>
                   {r.request && <p className="text-gray-400">요청: {r.request}</p>}
                 </div>

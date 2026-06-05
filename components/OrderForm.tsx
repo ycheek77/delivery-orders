@@ -119,7 +119,9 @@ export default function OrderForm() {
         orderer_contact: "",
         recipients: recipients.map((r) => ({
           recipient_name: r.recipient_name,
-          address: `[${r.zip}] ${r.address1}${r.address2 ? " " + r.address2 : ""}`,
+          address: r.zip
+            ? `[${r.zip}] ${r.address1}${r.address2 ? " " + r.address2 : ""}`
+            : `${r.address1}${r.address2 ? " " + r.address2 : ""}`,
           contact: r.contact,
           request: r.request,
           items:   r.items,
