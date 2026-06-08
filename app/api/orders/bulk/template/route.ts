@@ -40,8 +40,24 @@ export async function GET() {
       });
     });
 
-    // ── 2. 허용 제품 목록 시트 ─────────────────────────────────
-    const ws2 = wb.addWorksheet("허용제품목록");
+    // ── 2. 제품명 컬럼 드롭다운 유효성 검사 (E2:E500) ────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (ws as any).dataValidations.add("E2:E500", {
+      type:             "list",
+      allowBlank:       true,
+      // Excel list formula: 쌍따옴표로 감싼 쉼표-구분 문자열
+      formulae:         [`"${PRODUCTS.join(",")}"`],
+      showErrorMessage: true,
+      errorStyle:       "stop",
+      errorTitle:       "허용되지 않는 제품명",
+      error:            "드롭다운 목록에서 제품을 선택해주세요.",
+      showInputMessage: true,
+      promptTitle:      "제품명 선택",
+      prompt:           "드롭다운에서 제품을 선택하세요.",
+    });
+
+    // ── 3. 허용 제품 목록 시트 ─────────────────────────────────
+    const ws2 = wb.addWorksheet("허용제품목록_참고");
     ws2.getColumn(1).width = 30;
     const titleRow = ws2.addRow(["허용 제품명 (정확히 입력하세요)"]);
     titleRow.getCell(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
