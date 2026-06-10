@@ -163,6 +163,28 @@ export async function insertOrder(
     }
   }
 
+  // 4) 수령인 정보를 고객 DB에 자동 저장 (이름+연락처 기준 upsert)
+  //    실패해도 주문 자체는 성공으로 처리
+  try {
+    const toUpsert = recipients
+      .filter((r) => r.recipient_name?.trim() && r.contact?.trim())
+      .map((r) => ({
+        name:    r.recipient_name.trim(),
+        contact: r.contact.trim(),
+        address: r.address?.trim() ?? "",
+      }));
+    if (toUpsert.length > 0) {
+      // 같은 (이름+연락처) 중복 제거
+      const dedupMap = new Map<string, typeof toUpsert[number]>();
+      for (const item of toUpsert) dedupMap.set(`${item.name}||${item.contact}`, item);
+      await supabase
+        .from("customers")
+        .upsert(Array.from(dedupMap.values()), { onConflict: "name,contact" });
+    }
+  } catch {
+    // 고객 DB 업데이트 실패는 무시 (주문은 이미 저장됨)
+  }
+
   return orderId;
 }
 
