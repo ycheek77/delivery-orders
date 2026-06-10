@@ -43,6 +43,17 @@ function todayKST() {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
 }
 
+// 상태별 색상 클래스
+function statusClass(status: string) {
+  switch (status) {
+    case "접수":    return "bg-blue-100 text-blue-700 border border-blue-300";
+    case "처리중":  return "bg-amber-100 text-amber-700 border border-amber-300";
+    case "발송완료": return "bg-green-100 text-green-700 border border-green-300";
+    case "취소":    return "bg-gray-100 text-gray-500 border border-gray-300 line-through";
+    default:        return "bg-gray-100 text-gray-500 border border-gray-300";
+  }
+}
+
 function OrdersTab() {
   const [date,        setDate]        = useState(todayKST);
   const [rows,        setRows]        = useState<RecipientRow[]>([]);
@@ -108,11 +119,15 @@ function OrdersTab() {
           조회
         </button>
         <button
-          onClick={() => window.open(`/api/export?date=${date}`, "_blank")}
-          disabled={rows.length === 0}
+          onClick={async () => {
+            window.open(`/api/export?date=${date}`, "_blank");
+            // 엑셀 다운로드 후 잠시 뒤 테이블 새로고침 (접수→처리중 전환 반영)
+            setTimeout(() => fetchOrders(), 1500);
+          }}
+          disabled={rows.filter((r) => r.status !== "취소").length === 0}
           className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-green-500"
         >
-          📥 주문 엑셀 ({rows.length}건)
+          📥 주문 엑셀 ({rows.filter((r) => r.status !== "취소").length}건)
         </button>
       </div>
 
@@ -158,7 +173,7 @@ function OrdersTab() {
           <table className="w-full text-sm whitespace-nowrap">
             <thead className="bg-blue-600 text-white">
               <tr>
-                {["번호","주문일시","주문자","수령인명","제품및수량","주소","연락처","요청사항","송장번호"].map((h) => (
+                {["번호","주문일시","주문자","수령인명","제품및수량","주소","연락처","요청사항","송장번호","상태"].map((h) => (
                   <th key={h} className="px-3 py-3 text-left font-semibold">{h}</th>
                 ))}
               </tr>
@@ -166,9 +181,14 @@ function OrdersTab() {
             <tbody>
               {rows.map((r, i) => {
                 const noRecipient = r.recipient_id === 0;
+                const isCancelled = r.status === "취소";
                 return (
                   <tr key={`${r.order_id}-${r.recipient_id}-${i}`}
-                    className={noRecipient ? "bg-amber-50" : i % 2 === 1 ? "bg-blue-50" : "bg-white"}>
+                    className={
+                      isCancelled ? "bg-gray-50 opacity-60" :
+                      noRecipient ? "bg-amber-50" :
+                      i % 2 === 1  ? "bg-blue-50" : "bg-white"
+                    }>
                     <td className="px-3 py-2 text-gray-500">{r.order_id}</td>
                     <td className="px-3 py-2">{r.created_at}</td>
                     <td className="px-3 py-2 font-medium">{r.orderer_name}</td>
@@ -185,6 +205,26 @@ function OrdersTab() {
                       {r.tracking_number
                         ? <span className="text-green-700 font-medium">{r.tracking_number}</span>
                         : <span className="text-gray-300 text-xs">미입력</span>}
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={r.status ?? "접수"}
+                        onChange={async (e) => {
+                          const newStatus = e.target.value;
+                          await fetch("/api/orders/status", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ orderId: r.order_id, status: newStatus }),
+                          });
+                          fetchOrders();
+                        }}
+                        className={`text-xs font-medium rounded-full px-2 py-0.5 cursor-pointer focus:outline-none ${statusClass(r.status ?? "접수")}`}
+                      >
+                        <option value="접수">접수</option>
+                        <option value="처리중">처리중</option>
+                        <option value="발송완료">발송완료</option>
+                        <option value="취소">취소</option>
+                      </select>
                     </td>
                   </tr>
                 );

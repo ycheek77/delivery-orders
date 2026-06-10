@@ -29,4 +29,5 @@ export interface RecipientRow {
   products: string;
   tracking_number: string;
   created_at: string;
+  status: string;
 }

@@ -34,6 +34,7 @@ export interface FlatRow {
   products: string;
   tracking_number: string;
   created_at: string;
+  status: string;
 }
 
 export interface Customer {
@@ -50,6 +51,7 @@ interface DbOrderRow {
   orderer_name: string;
   orderer_contact: string;
   created_at: string;
+  status: string;
   recipients: {
     id: number;
     recipient_name: string;
@@ -67,6 +69,7 @@ function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
   const rows: FlatRow[] = [];
   for (const order of orders) {
     const recs = order.recipients ?? [];
+    const status = order.status ?? "접수";
     if (recs.length === 0) {
       rows.push({
         recipient_id:    0,
@@ -80,6 +83,7 @@ function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
         products:        "",
         tracking_number: "",
         created_at:      order.created_at,
+        status,
       });
     } else {
       for (const rec of recs) {
@@ -99,6 +103,7 @@ function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
           products,
           tracking_number: rec.tracking_number ?? "",
           created_at:      order.created_at,
+          status,
         });
       }
     }
@@ -107,7 +112,7 @@ function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
 }
 
 const ORDER_SELECT = `
-  id, orderer_name, orderer_contact, created_at,
+  id, orderer_name, orderer_contact, created_at, status,
   recipients (
     id, recipient_name, address, contact, request, tracking_number,
     order_items ( product_name, quantity )
@@ -280,6 +285,55 @@ export async function deleteCustomer(id: number): Promise<boolean> {
     .delete()
     .eq("id", id);
   return !error;
+}
+
+// ── 주문 상태 일괄 업데이트 (관리자용 — 엑셀 다운로드 후 처리중 전환 등) ──
+export async function updateOrdersStatus(
+  orderIds: number[],
+  status: string
+): Promise<void> {
+  if (orderIds.length === 0) return;
+  const { error } = await supabase
+    .from("orders")
+    .update({ status })
+    .in("id", orderIds);
+  if (error) throw new Error(error.message);
+}
+
+// ── 단일 주문 상태 변경 (관리자 수동) ────────────────────────────
+export async function updateOrderStatus(
+  orderId: number,
+  status: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("orders")
+    .update({ status })
+    .eq("id", orderId);
+  if (error) throw new Error(error.message);
+}
+
+// ── 주문 취소 (주문자 본인 — '접수' 상태만 가능) ─────────────────
+export async function cancelOrder(
+  orderId: number,
+  ordererName: string
+): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id, orderer_name, status")
+    .eq("id", orderId)
+    .single();
+
+  if (error || !data) return { ok: false, error: "주문을 찾을 수 없습니다." };
+  if (data.orderer_name !== ordererName) return { ok: false, error: "권한이 없습니다." };
+  if (data.status !== "접수") return { ok: false, error: "접수 상태인 주문만 취소할 수 있습니다." };
+
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update({ status: "취소" })
+    .eq("id", orderId);
+
+  if (updateErr) return { ok: false, error: updateErr.message };
+  return { ok: true };
 }
 
 // ── 송장번호 일괄 업데이트 ────────────────────────────────────────
