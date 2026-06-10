@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { PRODUCTS } from "@/lib/products";
 import { insertOrder } from "@/lib/db";
+import { getAuthFromRequest } from "@/lib/auth";
 
 function errJson(e: unknown, status = 500) {
   const message = e instanceof Error ? e.message : "서버 오류가 발생했습니다.";
@@ -19,6 +20,12 @@ interface ParsedRow {
 
 export async function POST(req: NextRequest) {
   try {
+    // JWT에서 접속 코드 ID 추출
+    const auth = await getAuthFromRequest(req);
+    if (!auth?.sub) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
@@ -97,7 +104,7 @@ export async function POST(req: NextRequest) {
       recMap.get(key)!.items.push({ product_name: row.product, quantity: row.quantity });
     }
 
-    // ── 주문 저장 ────────────────────────────────────────────────
+    // ── 주문 저장 (access_code_id는 JWT에서, orderer_name은 엑셀에서) ──
     let created = 0;
     let totalRecipients = 0;
     const saveErrors: string[] = [];
@@ -111,7 +118,7 @@ export async function POST(req: NextRequest) {
         items:          r.items,
       }));
       try {
-        await insertOrder(ordererName, "", recipients);
+        await insertOrder(auth.sub, ordererName, recipients);
         created++;
         totalRecipients += recipients.length;
       } catch (e) {

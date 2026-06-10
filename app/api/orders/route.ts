@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { insertOrder, queryRows } from "@/lib/db";
-import type { OrderInput } from "@/types/order";
+import { getAuthFromRequest } from "@/lib/auth";
 
 function errJson(e: unknown, status = 500) {
   const message = e instanceof Error ? e.message : "서버 오류가 발생했습니다.";
@@ -9,14 +9,20 @@ function errJson(e: unknown, status = 500) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body: OrderInput = await req.json();
-    const { orderer_name, orderer_contact, recipients } = body;
-
-    if (!orderer_name || !recipients?.length) {
-      return NextResponse.json({ error: "필수 항목을 모두 입력해주세요." }, { status: 400 });
+    // JWT에서 접속 코드 ID와 사용자명 추출
+    const auth = await getAuthFromRequest(req);
+    if (!auth?.sub) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const id = await insertOrder(orderer_name, orderer_contact ?? "", recipients);
+    const body = await req.json();
+    const { recipients } = body;
+
+    if (!recipients?.length) {
+      return NextResponse.json({ error: "수령인 정보를 입력해주세요." }, { status: 400 });
+    }
+
+    const id = await insertOrder(auth.sub, auth.name, recipients);
     return NextResponse.json({ id }, { status: 201 });
   } catch (e) {
     return errJson(e);

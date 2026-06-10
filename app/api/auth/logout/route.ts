@@ -1,0 +1,8 @@
+import { NextResponse } from "next/server";
+
+// POST /api/auth/logout — auth_token 쿠키 삭제
+export async function POST() {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.delete("auth_token");
+  return res;
+}

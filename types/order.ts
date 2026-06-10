@@ -12,8 +12,6 @@ export interface RecipientInput {
 }
 
 export interface OrderInput {
-  orderer_name: string;
-  orderer_contact: string;
   recipients: RecipientInput[];
 }
 
@@ -22,6 +20,7 @@ export interface RecipientRow {
   order_id: number;
   orderer_name: string;
   orderer_contact: string;
+  access_code_id: string;
   recipient_name: string;
   address: string;
   contact: string;

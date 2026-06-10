@@ -27,6 +27,7 @@ export interface FlatRow {
   order_id: number;
   orderer_name: string;
   orderer_contact: string;
+  access_code_id: string;
   recipient_name: string;
   address: string;
   contact: string;
@@ -50,6 +51,7 @@ interface DbOrderRow {
   id: number;
   orderer_name: string;
   orderer_contact: string;
+  access_code_id: string;
   created_at: string;
   status: string;
   recipients: {
@@ -76,6 +78,7 @@ function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
         order_id:        order.id,
         orderer_name:    order.orderer_name,
         orderer_contact: order.orderer_contact ?? "",
+        access_code_id:  order.access_code_id ?? "",
         recipient_name:  "",
         address:         "",
         contact:         "",
@@ -96,6 +99,7 @@ function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
           order_id:        order.id,
           orderer_name:    order.orderer_name,
           orderer_contact: order.orderer_contact ?? "",
+          access_code_id:  order.access_code_id ?? "",
           recipient_name:  rec.recipient_name,
           address:         rec.address,
           contact:         rec.contact,
@@ -112,7 +116,7 @@ function buildFlatRows(orders: DbOrderRow[]): FlatRow[] {
 }
 
 const ORDER_SELECT = `
-  id, orderer_name, orderer_contact, created_at, status,
+  id, orderer_name, orderer_contact, access_code_id, created_at, status,
   recipients (
     id, recipient_name, address, contact, request, tracking_number,
     order_items ( product_name, quantity )
@@ -121,14 +125,19 @@ const ORDER_SELECT = `
 
 // ── 주문 저장 ────────────────────────────────────────────────────
 export async function insertOrder(
-  orderer_name: string,
-  orderer_contact: string,
+  accessCodeId: string,
+  ordererName: string,
   recipients: RecipientInput[]
 ): Promise<number> {
   // 1) 주문 삽입
   const { data: orderData, error: orderErr } = await supabase
     .from("orders")
-    .insert({ orderer_name, orderer_contact, created_at: nowKST() })
+    .insert({
+      orderer_name:    ordererName,
+      orderer_contact: "",
+      access_code_id:  accessCodeId,
+      created_at:      nowKST(),
+    })
     .select("id")
     .single();
   if (orderErr || !orderData) throw new Error(orderErr?.message ?? "주문 저장 실패");
@@ -215,6 +224,17 @@ export async function queryByOrderer(name: string): Promise<FlatRow[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.from("orders").select(ORDER_SELECT) as any)
     .eq("orderer_name", name)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return buildFlatRows((data ?? []) as DbOrderRow[]);
+}
+
+// ── 내 주문 조회 (접속 코드 ID — 본인 주문만) ──────────────────────
+export async function queryByAccessCodeId(accessCodeId: string): Promise<FlatRow[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from("orders").select(ORDER_SELECT) as any)
+    .eq("access_code_id", accessCodeId)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
@@ -312,19 +332,19 @@ export async function updateOrderStatus(
   if (error) throw new Error(error.message);
 }
 
-// ── 주문 취소 (주문자 본인 — '접수' 상태만 가능) ─────────────────
+// ── 주문 취소 (접속 코드 ID로 본인 확인 — '접수' 상태만 가능) ────
 export async function cancelOrder(
   orderId: number,
-  ordererName: string
+  accessCodeId: string
 ): Promise<{ ok: boolean; error?: string }> {
   const { data, error } = await supabase
     .from("orders")
-    .select("id, orderer_name, status")
+    .select("id, access_code_id, status")
     .eq("id", orderId)
     .single();
 
   if (error || !data) return { ok: false, error: "주문을 찾을 수 없습니다." };
-  if (data.orderer_name !== ordererName) return { ok: false, error: "권한이 없습니다." };
+  if (data.access_code_id !== accessCodeId) return { ok: false, error: "권한이 없습니다." };
   if (data.status !== "접수") return { ok: false, error: "접수 상태인 주문만 취소할 수 있습니다." };
 
   const { error: updateErr } = await supabase

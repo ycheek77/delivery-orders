@@ -1,20 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cancelOrder } from "@/lib/db";
+import { getAuthFromRequest } from "@/lib/auth";
 
-// POST /api/orders/cancel
-// body: { orderId: number; ordererName: string }
-// 주문자 본인이 '접수' 상태 주문만 취소 가능
+// POST /api/orders/cancel  body: { orderId: number }
+// JWT 쿠키의 access_code_id로 본인 주문인지 검증 후 취소
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const orderId     = Number(body?.orderId);
-    const ordererName = String(body?.ordererName ?? "").trim();
-
-    if (!orderId || !ordererName) {
-      return NextResponse.json({ error: "필수 파라미터 누락" }, { status: 400 });
+    const auth = await getAuthFromRequest(req);
+    if (!auth?.sub) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const result = await cancelOrder(orderId, ordererName);
+    const body = await req.json();
+    const orderId = Number(body?.orderId);
+
+    if (!orderId) {
+      return NextResponse.json({ error: "주문 ID가 필요합니다." }, { status: 400 });
+    }
+
+    const result = await cancelOrder(orderId, auth.sub);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
