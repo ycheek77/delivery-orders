@@ -65,6 +65,8 @@ export async function middleware(req: NextRequest) {
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/admin/login") ||   // 관리자 로그인 API
+    pathname.startsWith("/api/admin/logout") ||  // 관리자 로그아웃 API
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/admin/login") ||
     pathname === "/favicon.ico"
