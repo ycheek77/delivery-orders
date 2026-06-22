@@ -9,12 +9,13 @@ export async function GET() {
     // ── 1. 주문 입력 시트 ────────────────────────────────────────
     const ws = wb.addWorksheet("일괄주문입력");
     ws.columns = [
-      { header: "주문자",  key: "orderer",   width: 14 },
-      { header: "수령인",  key: "recipient", width: 14 },
-      { header: "주소",    key: "address",   width: 48 },
-      { header: "연락처",  key: "contact",   width: 18 },
-      { header: "제품명",  key: "product",   width: 28 },
-      { header: "수량",    key: "quantity",  width: 8  },
+      { header: "주문자",   key: "orderer",   width: 14 },
+      { header: "수령인",   key: "recipient", width: 14 },
+      { header: "주소",     key: "address",   width: 48 },
+      { header: "연락처",   key: "contact",   width: 18 },
+      { header: "제품명",   key: "product",   width: 28 },
+      { header: "수량",     key: "quantity",  width: 8  },
+      { header: "요청사항", key: "request",   width: 28 },
     ];
 
     ws.getRow(1).eachCell((cell) => {
@@ -26,10 +27,10 @@ export async function GET() {
 
     // 예시 행 (노란 배경)
     const examples = [
-      { orderer: "김주문", recipient: "홍길동", address: "서울시 강남구 테헤란로 123",      contact: "010-1234-5678", product: "설포유 프라임 포뮬러",  quantity: 2 },
-      { orderer: "김주문", recipient: "홍길동", address: "서울시 강남구 테헤란로 123",      contact: "010-1234-5678", product: "슬립B",               quantity: 1 },
-      { orderer: "김주문", recipient: "이영희", address: "경기도 수원시 팔달구 행궁로 1",   contact: "010-9876-5432", product: "세로타민",             quantity: 1 },
-      { orderer: "박주문", recipient: "최민수", address: "부산시 해운대구 해운대해변로 264", contact: "010-1111-2222", product: "슬립B",               quantity: 3 },
+      { orderer: "김주문", recipient: "홍길동", address: "서울시 강남구 테헤란로 123",      contact: "010-1234-5678", product: "설포유 프라임 포뮬러",  quantity: 2, request: "부재 시 경비실 맡겨주세요" },
+      { orderer: "김주문", recipient: "홍길동", address: "서울시 강남구 테헤란로 123",      contact: "010-1234-5678", product: "슬립B",               quantity: 1, request: "" },
+      { orderer: "김주문", recipient: "이영희", address: "경기도 수원시 팔달구 행궁로 1",   contact: "010-9876-5432", product: "세로타민",             quantity: 1, request: "" },
+      { orderer: "박주문", recipient: "최민수", address: "부산시 해운대구 해운대해변로 264", contact: "010-1111-2222", product: "슬립B",               quantity: 3, request: "배송 전 연락 주세요" },
     ];
     examples.forEach((ex) => {
       const r = ws.addRow(ex);

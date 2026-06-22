@@ -19,10 +19,11 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function MyOrders() {
-  const [rows,       setRows]       = useState<RecipientRow[] | null>(null);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState("");
-  const [cancelling, setCancelling] = useState<number | null>(null);
+  const [rows,        setRows]        = useState<RecipientRow[] | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState("");
+  const [cancelling,  setCancelling]  = useState<number | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   // 페이지 진입 시 본인 주문 자동 조회
   useEffect(() => {
@@ -79,6 +80,30 @@ export default function MyOrders() {
     }
   }
 
+  async function handleExport() {
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/my-orders/export");
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? "다운로드 실패");
+      }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      const cd   = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename\*=UTF-8''(.+)/);
+      a.href     = url;
+      a.download = match ? decodeURIComponent(match[1]) : "내주문내역.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   // ── 렌더링 ────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto px-4 pb-10 pt-6">
@@ -119,9 +144,18 @@ export default function MyOrders() {
       {/* 주문 목록 */}
       {!loading && !error && rows !== null && rows.length > 0 && (
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-gray-500">
-            총 <span className="font-bold text-blue-600">{rows.length}건</span>의 주문 내역
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              총 <span className="font-bold text-blue-600">{rows.length}건</span>의 주문 내역
+            </p>
+            <button
+              onClick={handleExport}
+              disabled={downloading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 border border-green-300 rounded-lg hover:bg-green-50 disabled:opacity-50 transition-colors"
+            >
+              {downloading ? "다운로드 중…" : "엑셀로 내려받기"}
+            </button>
+          </div>
           {rows.map((r, i) => {
             const status     = r.status ?? "";
             const isCancelled = status === "취소";

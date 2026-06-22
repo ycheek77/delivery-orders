@@ -16,6 +16,7 @@ interface ParsedRow {
   contact:   string;
   product:   string;
   quantity:  number;
+  request:   string;
 }
 
 export async function POST(req: NextRequest) {
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
       const contact      = row.getCell(4).text?.trim() ?? "";
       const product      = row.getCell(5).text?.trim() ?? "";
       const quantityText = row.getCell(6).text?.trim() ?? "";
+      const request      = row.getCell(7).text?.trim() ?? "";
 
       // 완전히 빈 행은 건너뜀
       if (!orderer && !recipient && !product) return;
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      parsedRows.push({ orderer, recipient, address, contact, product, quantity });
+      parsedRows.push({ orderer, recipient, address, contact, product, quantity, request });
     });
 
     if (errors.length > 0) {
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest) {
       recipient: string;
       address:   string;
       contact:   string;
+      request:   string;
       items:     { product_name: string; quantity: number }[];
     };
     const orderMap = new Map<string, Map<string, RecipientEntry>>();
@@ -98,8 +101,12 @@ export async function POST(req: NextRequest) {
           recipient: row.recipient,
           address:   row.address,
           contact:   row.contact,
+          request:   row.request,
           items:     [],
         });
+      } else if (!recMap.get(key)!.request && row.request) {
+        // 같은 수령인의 첫 번째 비어있지 않은 요청사항 사용
+        recMap.get(key)!.request = row.request;
       }
       recMap.get(key)!.items.push({ product_name: row.product, quantity: row.quantity });
     }
@@ -114,7 +121,7 @@ export async function POST(req: NextRequest) {
         recipient_name: r.recipient,
         address:        r.address,
         contact:        r.contact,
-        request:        "",
+        request:        r.request,
         items:          r.items,
       }));
       try {
